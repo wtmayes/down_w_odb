@@ -1,0 +1,39 @@
+---
+# Loop thru this whole block of tasks to check/set OOB key on each node
+- name: Get the curr discovered node from IP list to reset BIOS configs
+  set_fact: 
+    curr_node_ip: "{{ ip_addr }}"
+
+# Use ip from list to locate and set details to curr_node_info
+- name: Query the data structure to find this IP's details
+  vars:
+    q: "[?soft_ip == `{{ curr_node_ip }}`]"
+  set_fact:
+    curr_node_info: '{{ (nodes | json_query(q))[0] }}'
+
+- debug:
+    msg: UPDATING BIOS CONFIG SETTINGS FOR NODE {{ ansible_loop.index }} OF {{ num_nodes }} CONNECTED NODES
+
+- debug:
+    msg: RE-CONFIG TAKES THREE REBOOTS PER NODE AT ABOUT 2-3 MINUTES PER REBOOT
+
+- name: Run SUM command to return bios on {{ curr_node_info.asset_tag }} to factory defaults
+  vars:
+    # sum_path: "files//sum_2.5.2_Linux_x86_64/"
+    bios_def_str: "-u ADMIN -p ADMIN -c LoadDefaultBiosCfg --reboot"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ bios_def_str }}"
+
+- name: Return BIOS to baseline configs on {{ curr_node_info.asset_tag }} before setting boot order
+  vars:
+    # sum_path: "files//sum_2.5.2_Linux_x86_64/"
+    bios_base_str: "-u ADMIN -p ADMIN -c ChangeBiosCfg --file"
+    baseline_cfg_str: "files/bios_baseline_cfg.xml --reboot --skip_unknown option"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ bios_base_str }} {{ baseline_cfg_str }}"
+
+- name: Set boot order in BIOS on {{ curr_node_info.asset_tag }} to the standard in every node
+  vars:
+    # sum_path: "files//sum_2.5.2_Linux_x86_64/"
+    bios_base_str: "-u ADMIN -p ADMIN -c ChangeBiosCfg --file"
+    bo_cfg_str: "files/bios_boot_order_cfg.xml --reboot --skip_unknown option --skip_duplication_check"       
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ bios_base_str }} {{ bo_cfg_str }}"
+...  

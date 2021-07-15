@@ -1,0 +1,15 @@
+---
+- hosts: localhost
+  gather_facts: false
+  pre_tasks:
+    - name: Jump to role for discovery and configuration
+      debug:
+        msg: "Let's go!"
+  vars: # variables used a lot in this role
+    nodes: []
+    mem_lines: []
+    brand: "FGGA Armory"
+    sum_path: "files/sum_2.5.2_Linux_x86_64/"
+  roles: 
+    - role: oob_dmi_bios
+... 

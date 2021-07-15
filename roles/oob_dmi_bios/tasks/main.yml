@@ -1,0 +1,117 @@
+---
+  # The 2 tasks below will be replaced by nmap shell cmd in prod
+  # SampleKxxIPs.txt will be a manually created list of "found"
+  # IP's ONLY for local test purposes.
+# - name: (Repl later-test) Get IP Addresses for use below
+#   shell: "cat files/SampleK77IPs.txt"
+#   register: node_ipmis_in
+
+# - debug: var=node_ipmis_in
+
+# - name: (Repl later-test) Split IPs read-in into indiv IPs for loop
+#   set_fact:
+#     ip_list: "{{node_ipmis_in.stdout.split('\n') | map('trim') | list }}"
+
+# Re-comment out the two tasks above.
+# Uncomment these to work with dynamic discovery of nodes attached to vlan53
+
+- name: Get available nodes in my IP space (usually vlan 53)
+  shell: "nmap -n 10.{{kit_num}}.53.1/24 -T4 -Pn -p 623 --open  |grep -E '^Nmap\\Wscan' | awk '{print $NF}'"
+  register: node_ipmis_in
+
+- debug:
+    var: node_ipmis_in.stdout
+
+- name: Set fact
+  set_fact:
+    ip_list : "{{node_ipmis_in.stdout.split('\n')}}" 
+
+# ######################################
+# # Everything above here runs before
+# # other loops in other ymls and all
+# # tasks in block run before return.
+# # Everything below runs after loop
+# ######################################
+
+# Get details for each associated IPMI, Base Board, and MAC addr 
+- name: Learn about connected nodes -- loop thru IPs
+  # Trick to run thru one long loop as a block & return
+  include_tasks: chk_ipmis_loop.yml
+  loop:  "{{ ip_list }}"
+  loop_control:
+    extended: yes
+    loop_var: ip_addr
+
+- name: Announce return from IPMIs loop
+  debug: 
+    msg: "Back from creating data structure and vars for connected nodes!"
+
+# Back from ipmi loop 1 and branch to loop 2 to check OOB licenses for each node
+# Check OOB license status on each node
+- name: Jump to loop for connected node's OOB status
+  # Trick to run thru one long loop as a block & return
+  include_tasks: chk_oob_loop.yml
+  loop:  "{{ ip_list }}"
+  loop_control:
+    extended: yes
+    loop_var: ip_addr
+
+- name: Announce return from OOB loop
+  debug: 
+    msg: "Back from checking and installing OOB keys!"
+
+# Check and upgrade BIOS version on each node
+- name: Jump to loop for connected node's BIOS upgrade status
+  # Trick to run thru one long loop as a block & return
+  include_tasks: chk_bios_ver_loop.yml
+  loop:  "{{ ip_list }}"
+  loop_control:
+    extended: yes
+    loop_var: ip_addr
+
+- name: Announce return from BIOS UG loop
+  debug: 
+    msg: "Back from checking and upgrading BIOS on nodes!"
+
+# Check and tattoo info on each node as necessary
+- name: Jump to loop for branding nodes with SN/FGGA/Asset Tag
+  # Trick to run thru one long loop as a block & return
+  include_tasks: chk_dmi_loop.yml
+  loop:  "{{ ip_list }}"
+  loop_control:
+    extended: yes
+    loop_var: ip_addr
+
+- name: Announce return from branding nodes loop
+  debug: 
+    msg: "Back from checking and branding identifying info on nodes!"
+
+- name: Jump to loop for checking presence of drives and memory
+  # Trick to run thru one long loop as a block & return
+  include_tasks: chk_drives_mem_loop.yml
+  loop:  "{{ ip_list }}"
+  loop_control:
+    extended: yes
+    loop_var: ip_addr
+
+- name: Announce return from checking drives and memory loop
+  debug: 
+    msg: "Back from checking drive and memory presence on nodes!"
+
+# Change BIOS configs to standard on each node
+- name: Jump to final loop for standard BIOS configs
+  # Trick to run thru one long loop as a block & return
+  include_tasks: chg_bios_cfg_loop.yml
+  loop:  "{{ ip_list }}"
+  loop_control:
+    extended: yes
+    loop_var: ip_addr
+
+- name: Announce return from branding nodes loop
+  debug: 
+    msg: "Back from setting standard BIOS configs and boot order on nodes!"
+
+- name: All the OOB key, BIOS upgrades, DMI info and BIOS configs were done!!
+  debug: 
+    msg: "All nodes up-to-date and ready for deployment"
+...

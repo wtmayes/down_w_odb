@@ -1,0 +1,46 @@
+---
+# Loop thru this whole block of tasks to check/UG BIOS on each node
+- name: Get the curr discovered node from IP list to retrieve BIOS info
+  set_fact: 
+    curr_node_ip: "{{ ip_addr }}"
+
+# Use ip from list to locate and set details to curr_node_info
+- name: Query the data structure to find this IP's details
+  vars:
+    q: "[?soft_ip == `{{ curr_node_ip }}`]"
+  set_fact:
+    curr_node_info: '{{ (nodes | json_query(q))[0] }}'
+
+- debug:
+    msg: CHECKING BIOS VER FOR NODE {{ ansible_loop.index }} OF {{ num_nodes }} CONNECTED NODES
+
+- name: Run SUM command to query {{ curr_node_info.asset_tag }}'s BIOS version
+  vars:
+    # sum_path: "files/sum_2.5.2_Linux_x86_64/"
+    bios_get_str: "-u ADMIN -p ADMIN -c GetBiosInfo --showall"  
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ bios_get_str }}"
+  register: qry_return
+
+- name: Get last 6 chars into 2nd-to-last line of SUM-GetBiosInfo return val
+  set_fact: 
+    bios_rc: "{{ qry_return.stdout_lines[-2][-6:] }}"
+
+- debug:  # should return false if BIOS is old 
+    msg: "BIOS upgraded is {{ bios_rc != older_st_bios_ver }}"
+  vars:
+    older_st_bios_ver: "1.1.V1"
+    # newer_st_bios_ver: "1.3a" future reference
+  
+# Check last 6 chars of rc--if NOT v1.3a, then BIOS needs an Upgrade
+- name: Update BIOS if old 1.1V1 is found
+  vars:
+    older_st_bios_ver: "1.1.V1"
+    # sum_path: "files/sum_2.5.2_Linux_x86_64/"
+    bios_ug_str: "-u ADMIN -p ADMIN -c UpdateBios --file files/STECH_DEC2020.ROM --reboot"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ bios_ug_str }}" 
+  when: "{{ bios_rc == older_st_bios_ver }}"
+
+- name: Announce BIOS for {{ curr_node_info.asset_tag }} is up-to-date
+  debug: 
+    msg: "BIOS upgraded on {{ curr_node_info.asset_tag }}"
+...

@@ -1,0 +1,40 @@
+---
+# Loop thru this whole block of tasks to check/set OOB key on each node
+- name: Get the curr discovered node from IP list to retrieve OOB info
+  set_fact: 
+    curr_node_ip: "{{ ip_addr }}"
+
+# Use ip from list to locate and set details to curr_node_info
+- name: Query the data structure to find this IP's details
+  vars:
+    q: "[?soft_ip == `{{ curr_node_ip }}`]"
+  set_fact:
+    curr_node_info: '{{ (nodes | json_query(q))[0] }}'
+
+- debug:
+    msg: GETTING OOB STATUS ON NODE {{ ansible_loop.index }} OF {{ num_nodes }} CONNECTED NODES
+
+- name: Run SUM command to ask for {{ curr_node_info.asset_tag }}'s OOB license status
+  vars:
+    qry_key_str: "-u ADMIN -p ADMIN -c QueryProductKey"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ qry_key_str }}"
+  register: poke_return
+
+- name: Stuff last line of SUM-QueryProductKey cmd return val into variable
+  set_fact: 
+    oob_rc: "{{ poke_return.stdout_lines[-1] }}"
+
+# Check last char of rc--if 0, then node needs OOB Key
+- name: install OOB key on {{ curr_node_info.asset_tag }} if not installed
+  vars:
+    act_key_str: "-u ADMIN -p ADMIN -c ActivateProductKey --key"
+  shell: >
+    {{ sum_path }}sum -i 
+    {{ curr_node_info.soft_ip }} {{ act_key_str }} 
+    {{ curr_node_info.oob_key }}
+  when: "{{ (oob_rc[-1:] | int ) < 1 }}"
+
+- name: Announce OOB key installed
+  debug: 
+    msg: "OOB key installed on {{ curr_node_info.asset_tag }}"
+...

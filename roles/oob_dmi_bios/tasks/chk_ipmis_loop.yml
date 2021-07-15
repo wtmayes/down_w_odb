@@ -1,0 +1,44 @@
+---
+# 1st looping block--get MAC with IP and pair them with other node details--build list
+# This WHOLE BLOCK loops once for each node found in the ip space 
+- name: Run IPMITool command to query each device for IPMI MAC
+  shell: "ipmitool -U ADMIN -P ADMIN -H {{ ip_addr }} raw 0x0c 0x02 0x01 0x05 0x00 0x00"
+  register: ipmi_return
+
+- name: Get number of nodes connected
+  set_fact:
+    num_nodes: "{{ ip_list | length }}"
+
+# Returned value is MAC prefixed with " 11 " and spaces instead of :'s
+- name: Format and store IPMI MAC return info
+  set_fact:
+    found_mac: "{{ ipmi_return.stdout [3:] | regex_replace(' ','') }}"
+
+- debug:
+    msg: GETTING INFO FOR NODE {{ ansible_loop.index }} OF {{ num_nodes }} CONNECTED NODES
+
+# Find whole line of this node's details in big spreadsheet
+- name: Parse kit/node details and return values each time thru
+  shell: "awk '/{{ found_mac }}/' files/consolidated_list.txt"
+  register: output_line
+
+# Create a dictionary of parsed values for from the line retrieved above
+- name: Assign values from consolidated_list.txt to keys for node
+  set_fact:
+    node_data: "{{ node_data | default ({}) | combine ({ item.key : item.value }) }}"
+  with_items: 
+    - { 'key' : 'asset_tag', 'value' : "{{ output_line.stdout.split(' ') [1] }}" }
+    - { 'key' : 'st_ser_num', 'value' : "{{ output_line.stdout.split(' ') [2] }}" }
+    - { 'key' : 'base_board_id', 'value' : "{{ output_line.stdout.split(' ') [3] }}" }
+    - { 'key' : 'mac_address', 'value' : "{{ output_line.stdout.split(' ') [4] }}" }
+    - { 'key' : 'oob_key', 'value' : "{{ output_line.stdout.split(' ') [5] }}" }
+    - { 'key' : 'soft_ip', 'value' : "{{ ip_addr }}" }
+
+# Add this to a list of dictionaries for all nodes found
+- name: Append the dictionary values to a list of nodes
+  set_fact:
+    nodes: "{{ nodes | default ([]) + [ node_data ] }}"
+
+# - name: Show me the growing list of node details each time thru
+#   debug: var=nodes
+...

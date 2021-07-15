@@ -1,0 +1,122 @@
+---
+# This WHOLE BLOCK loops once for each node found in the ip space 
+- name: Get the curr discovered node from IP list to retrieve OOB info
+  set_fact: 
+    curr_node_ip: "{{ ip_addr }}"
+
+# Use ip from list to locate and set details to curr_node_info
+- name: Query the data structure to find this IP's details
+  vars:
+    q: "[?soft_ip == `{{ curr_node_ip }}`]"
+  set_fact:
+    curr_node_info: '{{ (nodes | json_query(q))[0] }}'
+
+- debug:
+    msg: CHECKING MEM/DRIVES FOR NODE {{ ansible_loop.index }} OF {{ num_nodes }} CONNECTED NODES
+
+- name: Reset Accessory Node Boolean for this iteration of loop
+  set_fact: 
+    accy_node: false
+
+- name: Change boolean if this node IS an Accessory node
+  set_fact:
+    accy_node: true
+  when: curr_node_info.asset_tag[0] == 'A'
+
+- name: Run a CheckAssetInfo command for Memory and NVMe devices 
+  vars:
+    cai_str: "-u ADMIN -p ADMIN -c CheckAssetInfo"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ cai_str }}"
+  register: cai_return
+
+- name: Read in the memory sizes reported by CheckAssetInfo
+  set_fact:
+    mem_lines: "{{ mem_lines | default ([]) + [ cai_return.stdout | regex_findall('.*Size.*') ] }}"
+
+# Get JUST memory sizes from lines in output  
+- name: Add each of the found memory DIMMs' total sizes together...
+  vars:
+    qry: '[0-9]+'
+  set_fact:
+    tot_mem_size: "{{ tot_mem_size | default(0) | int + ( item | regex_search(qry) | int ) }}"
+  with_items: "{{ mem_lines }}"
+
+- name: How much total memory did we find?
+  debug:
+    msg: "A total value of {{ tot_mem_size }} MB was reported"
+
+- name: Blink blue LED on Kit/Spare node with INCORRECT memory size
+  vars: 
+    on_uid_str: "-u ADMIN -p ADMIN -c LocateServerUid --action 2"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ on_uid_str }}"
+  when: "{{ tot_mem_size | int }}  < 262000 and not accy_node" 
+  # add 'and not accy_node' here ^^
+
+- name: Blink blue LED on Accessory node with INCORRECT memory size
+  vars: 
+    on_uid_str: "-u ADMIN -p ADMIN -c LocateServerUid --action 2"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ on_uid_str }}"
+  when: "{{ tot_mem_size | int }}  < 65000 and accy_node" 
+
+# See if an NVMe device was found--nothing returned if not found
+- name: Store the number of NVMe SSDs found
+  set_fact: 
+    num_nvmes: "{{ cai_return.stdout | regex_findall('NVMe') | length }}"
+
+- name: How many NVMe drives did we find?
+  debug:
+    msg: "Found {{ num_nvmes | int }} NVMe SSD"
+
+- name: Run a GetSATAInfo command to return SATA drive info
+  vars:
+    gsi_str: "-u ADMIN -p ADMIN -c GetSataInfo"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ gsi_str }}"
+  register: gsi_return
+
+# Collect SATA Drives now
+- name: Store each type of SATA SSD found
+  set_fact: 
+    num_microns: "{{ gsi_return.stdout | regex_findall('Micron_5') | length }}"
+    num_satads: "{{ gsi_return.stdout | regex_findall('SuperMicro SSD') | length }}"
+    num_ts128s: "{{ gsi_return.stdout | regex_findall('TS128') | length }}"  
+
+- name: Building a total of correct drives (TS128 + Micron + NVMe) found
+  set_fact:
+    num_corr_drives: "{{ (num_microns | int) + (num_ts128s | int) + (num_nvmes | int) }}"
+
+- name: How many Micron drives did we find?
+  debug:
+    msg: "Found {{ num_microns }} Micron SSDs"
+
+- name: How many TS128 drives did we find?
+  debug:
+    msg: "Found {{ num_ts128s }} TS128 SSD"
+
+- name: How many total correct drives (TS128 + Micron + NVMe) did we find?
+  debug: 
+    msg: "A total of {{ num_corr_drives }} CORRECT drives were found"
+
+- name: Blink blue LED on Kit/Spare node with INCORRECT drive count"
+  vars: 
+    on_uid_str: "-u ADMIN -p ADMIN -c LocateServerUid --action 2"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ on_uid_str }}"
+  when: "{{ num_corr_drives | int }}  != 5 and not accy_node"
+  # add 'and not accy_node' here ^^
+
+- name: Blink blue LED on Accessory node with INCORRECT drive count"
+  vars: 
+    on_uid_str: "-u ADMIN -p ADMIN -c LocateServerUid --action 2"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ on_uid_str }}"
+  when: "{{ num_corr_drives | int }}  != 2 and accy_node"
+
+- name: Did we find a SATA DOM?
+  debug: 
+    msg: "A SATA DOM was found and needs to be removed"
+  when: "{{ num_satads }}  > 0"
+
+- name: Turn on blinking blue LED on node with SATA DOM"
+  vars: 
+    on_uid_str: "-u ADMIN -p ADMIN -c LocateServerUid --action 2"
+  shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ on_uid_str }}"
+  when: "{{ num_satads }}  > 0"
+...

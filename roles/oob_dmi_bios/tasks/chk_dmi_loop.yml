@@ -1,0 +1,84 @@
+---
+# Loop thru this whole block of tasks to check/set branded info each node
+- name: Get the curr discovered node from IP list to retrieve OOB info
+  set_fact: 
+    curr_node_ip: "{{ ip_addr }}"
+
+# Use ip from list to locate and set details to curr_node_info
+- name: Query the data structure to find this IP's details
+  vars:
+    q: "[?soft_ip == `{{ curr_node_ip }}`]"
+  set_fact:
+    curr_node_info: '{{ (nodes | json_query(q))[0] }}'
+
+- debug:
+    msg: GETTING DMI INFO FOR NODE {{ ansible_loop.index }} OF {{ num_nodes }} CONNECTED NODES
+
+# Check 7th line of output--will either be "FGGA Armory" or 0123456789
+- name: Run a quick CheckAssetInfo command
+  vars:
+    chk_asset_str: "-u ADMIN -p ADMIN -c CheckAssetInfo"
+  shell: >
+    {{ sum_path }}sum -i 
+    {{ curr_node_info.soft_ip }} {{ chk_asset_str }} 
+  register: asset_info  
+
+- name: What did we find on {{ curr_node_info.asset_tag | upper }}'s Version?
+  debug: 
+    msg: "Checked--found {{ asset_info.stdout_lines[7] }}"
+
+- name: Check for FGGA Brand on node
+  debug: 
+    msg: "Item does NOT require SN/FGGA/Asset Tag to be branded"
+  when: asset_info.stdout.find('{{ brand }}') != -1
+
+- name: Check for FGGA Brand on node
+  debug: 
+    msg: "Node requires SN/FGGA/Asset Tag to be branded--give me 3-4 mins"
+  when: asset_info.stdout.find('{{ brand }}') == -1
+
+  # Go get the DMI info file this UUID and board
+- name: Download DMI info file from node
+  vars: 
+    get_dmi_file: "-u ADMIN -p ADMIN -c GetDmiInfo --overwrite --file"
+  shell: >
+    {{ sum_path }}sum -i 
+    {{ curr_node_info.soft_ip }} {{ get_dmi_file }} files/{{ curr_node_info.asset_tag }}.txt
+  when: asset_info.stdout.find('{{ brand }}') == -1
+
+- name: Replace Ser Num line in template file with {{ curr_node_info.st_ser_num }}
+  vars: # Change the Ser Num value
+    sn_str: "Serial Number          {SYSN}    = \"{{ curr_node_info.st_ser_num }}\"        // string value"
+  ansible.builtin.lineinfile:
+    path: files/{{ curr_node_info.asset_tag }}.txt
+    regexp: "^Serial Number          {SYSN}    = .*$"
+    line: "{{ sn_str }}"
+  when: asset_info.stdout.find('{{ brand }}') == -1   
+
+- name: Replace Asset Tag line in template file with {{ curr_node_info.asset_tag | upper }}
+  vars: # Change the Asset Tag value
+    at_str: "Asset Tag              {BBAT}    = \"{{ curr_node_info.asset_tag | upper }}\"                  // string value"
+  ansible.builtin.lineinfile:
+    path: files/{{ curr_node_info.asset_tag }}.txt
+    regexp: "^Asset Tag              {BBAT}    = .*$"
+    line: "{{ at_str }}"
+  when: asset_info.stdout.find('{{ brand }}') == -1   
+
+- name: Replace FGGA Brand line in template file with FGGA Armory brand
+  vars: # Put "brand" FGGA Armory into Version
+     brd_str: "Version                {SYVS}    = \"{{ brand }}\"            //string value"
+  ansible.builtin.lineinfile:
+    path: files/{{ curr_node_info.asset_tag }}.txt
+    regexp: "^Version                {SYVS}    = .*$"
+    line: "{{ brd_str }}"
+  when: asset_info.stdout.find('{{ brand }}') == -1   
+
+# Since it hasn't already been branded, brand it!
+- name: Brand node with Asset Tag and ST SN, if not branded already
+  vars: # Hand the changed template back to the node
+    wr_dmi_file: "-u ADMIN -p ADMIN -c ChangeDmiInfo --reboot --file"
+  shell: >
+    {{ sum_path }}sum -i 
+    {{ curr_node_info.soft_ip }} {{ wr_dmi_file }} files/{{ curr_node_info.asset_tag}}.txt 
+  when: asset_info.stdout.find('{{ brand }}') == -1
+...
