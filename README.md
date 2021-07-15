@@ -8,12 +8,14 @@ Assumptions:
   -	DHCP server running in the IP space (vlan 53)
   -	SUM tarball is extracted under the files directory
   -	User is root
+  
 The files required to run are:
   -	The seven .yml files, called in order from role update_oob_dmi_bios.yml,
   -	The most current BIOS.ROM file from SMC or SealingTech
   -	The consolidated list file—all the node data
   -	Two BIOS config .xml files for baseline, then boot order.
   -	The “SUM” executable (as a tar.gz from SuperMicro) to do nearly all this work out-of-band (OOB) 
+  
 The playbook(s) consists of 
   -	Check nodes master
   -	And 6 loops that run to
@@ -25,7 +27,8 @@ The playbook(s) consists of
   -	Then incrementally standardizes the BIOS configs thru 3 reboots—
     o	1)sets the node to defaults, 
     o	2)enables PXE, SR-IOV, PCIe and custom CPU settings, 
-    o	3) sets boot order.
+    o	3) sets boot order
+    
  The role is agnostic as to 
   -	whether the nodes are all from the same kit
   -	how many nodes are connected (1..x)
