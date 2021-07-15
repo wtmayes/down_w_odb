@@ -15,6 +15,7 @@ The files required to run are:
   -	The consolidated list file—all the node data
   -	Two BIOS config .xml files for baseline, then boot order.
   -	The “SUM” executable (as a tar.gz from SuperMicro) to do nearly all this work out-of-band (OOB) 
+  -	(The bios .ROM had to be zipped to meet file size requirements on GH--unzip and move to files dir)
   
 The playbook(s) consists of 
   -	Check nodes master
@@ -24,9 +25,10 @@ The playbook(s) consists of
   - Check whether the BIOS requires an upgrade, 
   -	Check if the SealingTech serial number, Asset tag, and FGGA Army brand has been applied
   -	Check to see if all the drives and memory for each node is seen by BIOS
-  -	Then incrementally standardizes the BIOS configs thru 3 reboots—
-    o	1)sets the node to defaults, 
-    o	2)enables PXE, SR-IOV, PCIe and custom CPU settings, 
+  -	Then incrementally standardizes the BIOS configs thru 3 reboots
+ 
+    o	1) sets the node to defaults,
+    o	2) enables PXE, SR-IOV, PCIe and custom CPU settings,
     o	3) sets boot order
     
  The role is agnostic as to 
