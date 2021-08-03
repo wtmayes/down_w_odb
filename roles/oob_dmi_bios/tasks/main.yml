@@ -15,6 +15,10 @@
 # Re-comment out the two tasks above.
 # Uncomment these to work with dynamic discovery of nodes attached to vlan53
 
+- name: Get Kit Number for nmap scan
+  set_fact:
+    kit_num: "{{ lookup ('file', '/etc/KITNUM') | int }}"
+
 - name: Get available nodes in my IP space (usually vlan 53)
   shell: "nmap -n 10.{{kit_num}}.53.1/24 -T4 -Pn -p 623 --open  |grep -E '^Nmap\\Wscan' | awk '{print $NF}'"
   register: node_ipmis_in

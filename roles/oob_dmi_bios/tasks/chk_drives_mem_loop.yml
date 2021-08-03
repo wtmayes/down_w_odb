@@ -29,6 +29,10 @@
   shell: "{{ sum_path }}sum -i {{ curr_node_info.soft_ip }} {{ cai_str }}"
   register: cai_return
 
+- name: Reset variable to nada for each loop iteration
+  set_fact:
+    mem_lines: []
+
 - name: Read in the memory sizes reported by CheckAssetInfo
   set_fact:
     mem_lines: "{{ mem_lines | default ([]) + [ cai_return.stdout | regex_findall('.*Size.*') ] }}"
@@ -37,6 +41,7 @@
 - name: Add each of the found memory DIMMs' total sizes together...
   vars:
     qry: '[0-9]+'
+    tot_mem_size: []
   set_fact:
     tot_mem_size: "{{ tot_mem_size | default(0) | int + ( item | regex_search(qry) | int ) }}"
   with_items: "{{ mem_lines }}"
