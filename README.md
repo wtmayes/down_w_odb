@@ -6,8 +6,9 @@ Assumptions:
   -	Ansible on a master laptop
   -	Nodes are configured for DHCP
   -	DHCP server running in the IP space (vlan 53)
+    (OR using a static list textfile--see comments in main.yml)
   -	SUM tarball is extracted under the files directory
-  -	User is root
+  -	User is root and folders/subfolders and all files from this repo are "chmod -R 755 *"
   
 The files required to run are:
   -	The seven .yml files, called in order from role update_oob_dmi_bios.yml,
@@ -36,11 +37,10 @@ The playbook(s) consists of
   -	how many nodes are connected (1..x)
   -	Whether the nodes are Accessory or Spare nodes.
   -	Whether there is an OS on the target nodes
-  -	No need to make ssh connections to servers
+  -	A need to make ssh connections to servers
   
-   The work is all done thru an IPMI and it’s APIs, via a powerful set of shell commands from SMC.  See the SUM user guide in the tarball.
-   The consolidated list file has 815 nodes listed (more to come) and only 5 empty data cells.  Kits 22, 23, 48, 55, and 82 are missing one node’s data each--no idea what happens if we try to run the playbook on those nodes missing data
+   The work is all done thru an IPMI and its APIs, via a powerful set of shell commands from SMC.  See the SUM user guide in the tarball.
+   The consolidated list file has 975 nodes listed NOW for all kits from 1-109 -- and no empty data cells.  90 Accessory nodes and 13 Spare nodes are also on the list.
 
-   I’ll send out an updated consolidated list textfile as soon as I can corral the missing info.  Due-out now to SealingTech for a list of mobos in kits 90-109.
-
+   We will have to make some future updates to consolidated_list.txt as nodes are repaired with new mainboards.  BIOS/firmware revisions may also require future updates.
    Thanks to Matt Cundari, Dave Hoskins and Will Stutt for letting me bug them with stupid questions.  The json query from Matt made a huge difference.
